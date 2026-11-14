@@ -1,0 +1,182 @@
+================================================================================
+한국 LG V30 (LGM-V300S/K/L) iOS 16 (XNU) 포팅 및 부팅 완벽 가이드
+================================================================================
+
+본 문서는 한국판 LG V30 (LGM-V300S / LGM-V300K / LGM-V300L / LGM-V300K0/L0 등,
+코드명: joan) 사용자가 본 리포지토리를 활용하여 Apple iOS 16 (XNU 커널)을
+직접 빌드하고 부팅하기 위한 상세 단계별 가이드입니다.
+
+[주의 사항]
+본 프로젝트는 하드웨어 브링업(bring-up) 목적의 실험적 프로젝트입니다.
+iOS 루트 파일시스템은 기기의 'userdata' 파티션에 설치되므로
+기존 안드로이드의 모든 사용자 데이터가 완전히 초기화(삭제)됩니다.
+중요한 데이터와 기기 고유 파티션은 사전에 반드시 백업하십시오!
+
+
+--------------------------------------------------------------------------------
+1. 사전 필수 요구 사항
+--------------------------------------------------------------------------------
+
+1) 기기 사양:
+   - 기기 모델: 한국 LG V30 / V30+ (SKT, KT, LGU+, 자급제)
+   - SoC / AP: Qualcomm Snapdragon 835 (MSM8998)
+   - RAM: 4GB LPDDR4x
+   - 스토리지: 64GB / 128GB UFS 2.1
+   - 디스플레이: 6.0인치 18:9 P-OLED (2880 x 1440 QHD+, 538 ppi)
+
+2) PC 작업 환경:
+   - Ubuntu / Debian Linux 환경 (또는 WSL2 / macOS)
+   - 필수 패키지: fastboot, adb, mkbootimg, aarch64-linux-gnu-gcc,
+     apfs-fuse, hfsprogs, android-sdk-libsparse-utils, python3
+
+3) 케이블:
+   - 신뢰할 수 있는 USB-A to Type-C 정품 또는 고품질 데이터 전송 케이블
+
+
+--------------------------------------------------------------------------------
+2. 1단계: LG V30 부트로더 언락 및 필수 파티션 백업
+--------------------------------------------------------------------------------
+
+LG전자의 공식 부트로더 언락 키 발급 서비스가 2021년 12월부로 공식 종료되었습니다.
+따라서 한국 출시 모델(V300S/K/L)은 XDA 개발자 커뮤니티에서 검증된
+WTF (Whatever To Fastboot / Frank_Script) 익스플로잇 취약점 공격 방식을 통해 언락해야 합니다.
+
+(1) EDL (Emergency Download, 9008) 모드를 통한 전체 백업 (매우 중요)
+   - 기기 고유의 모뎀 및 센서 보정(Calibration) 데이터는 유실 시 복구가 불가합니다.
+   - QPST 및 QFIL 툴을 실행합니다.
+   - 기기 전원을 끄고 볼륨 상(+) 또는 볼륨 하(-)를 누른 상태에서 PC 연결 후 9008 포트를 인식시킵니다.
+   - QFIL의 Partition Manager를 통해 다음 파티션을 PC로 백업(덤프)합니다:
+     * persist, modemst1, modemst2, fsg, fsc
+     * boot, recovery, laf, abl
+
+(2) WTF 익스플로잇 적용 및 fastboot 진입:
+   - V30 초기 엔지니어링 abl 이미지를 주입하여 fastboot 메뉴를 활성화합니다.
+   - 전원을 끄고 '볼륨 하(-) + 전원' 버튼을 길게 눌러 fastboot 모드로 진입합니다.
+   - PC 터미널에서 다음 명령을 실행하여 언락합니다:
+     $ fastboot oem unlock
+     $ fastboot reboot bootloader
+
+(3) 순정 DTB(Device Tree Blob) 추출:
+   - 백업한 순정 boot.img에서 디바이스 트리를 추출합니다:
+     $ python3 tools/unpack_bootv2.py backup/boot.img dtb/boot_unpacked
+     (결과물: dtb/boot_unpacked/dtb 확인)
+
+
+--------------------------------------------------------------------------------
+3. 2단계: XNU 커널 빌드
+--------------------------------------------------------------------------------
+
+Apple의 오픈소스 XNU(xnu-8796)에 Snapdragon 835 (MSM8998) ARMv8.0-A 아키텍처 및
+LG V30용 드라이버/패치가 적용되어 있습니다.
+
+GitHub Actions 워크플로를 이용해 macOS 14 환경에서 무료로 빌드할 수 있습니다:
+1) 본 리포지토리를 본인 GitHub 계정으로 포크(Fork)합니다.
+2) 리포지토리의 [Actions] 탭에서 [xnu] 워크플로를 선택하고 [Run workflow]를 실행합니다.
+3) 약 8분 후 빌드가 완료되면 생성된 'xnu-kernel' 아티팩트를 다운로드합니다.
+4) 다운로드한 'kernel.development.sweet' 파일을 리포지토리의 xnu/out/ 경로에 넣습니다:
+   $ mkdir -p xnu/out
+   $ cp ~/Downloads/kernel.development.sweet xnu/out/kernel.development.sweet
+
+
+--------------------------------------------------------------------------------
+4. 3단계: 순정 iPhone X iOS 16.7.16 루트 이미지 제작
+--------------------------------------------------------------------------------
+
+Apple 공식 서버에서 iPhone X (iPhone10,3) iOS 16.7.16 (20H392) 순정 IPSW를 준비합니다:
+
+1) IPSW 내의 OS.dmg, SystemOS.dmg, AppOS.dmg를 마운트하고 하나의 HFS+ 저널링 볼륨으로 병합:
+   $ tools/mkiosroot.sh OS.dmg SystemOS.dmg AppOS.dmg ios16-root.img 16G
+   $ sudo fsck.hfsplus -fy ios16-root.img
+
+2) LG V30 환경에 맞춘 유저랜드 최적화 트윅 적용:
+   (초기 설정 Setup.app 건너뛰기, 크래시 유발 데몬 정리 등)
+   $ sudo mount -t hfsplus -o loop,force ios16-root.img /mnt/iosroot
+   $ sudo python3 tools/sweet-root-tweaks.py /mnt/iosroot
+   $ sudo umount /mnt/iosroot
+
+3) 안드로이드 userdata 파티션 기록을 위한 sparse 이미지 변환:
+   $ img2simg ios16-root.img ios16-root.simg
+
+
+--------------------------------------------------------------------------------
+5. 4단계: LG V30용 ADT 빌드 및 shim-boot.img 생성
+--------------------------------------------------------------------------------
+
+MSM8998 하드웨어 주소(GICv3, 1440x2880 프레임버퍼, UFS 2.1, 4GB RAM 레이아웃)를 반영한
+Apple Device Tree(ADT)와 부트 이미지를 생성합니다:
+
+1) LG V30용 ADT 빌드:
+   $ python3 tools/mkadt.py shim/out/joan.adt --highmem
+
+2) 커널 + ADT + 부트 인자 결합 페이로드 생성:
+   $ python3 tools/mkpayload.py xnu/out/kernel.development.sweet shim/out/joan.adt shim/out/payload.bin \
+       --cmdline 'debug=0xc serial=3 cpus=4 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 sweetfb_noconsole=1 sweetfb_hz=30 sweettouch=0 sweetkeys=0'
+
+3) LG V30 부트로더 사양(base 0x0, kernel 0x8000, ramdisk 0x02000000, tags 0x01e00000)으로 패킹:
+   $ shim/build.sh ../shim/out/payload.bin
+   (결과물: shim/out/shim-boot.img 생성 완료)
+
+
+--------------------------------------------------------------------------------
+6. 5단계: userdata 플래시 및 부팅 테스트
+--------------------------------------------------------------------------------
+
+1) V30 전원을 끄고 '볼륨 하(-) + 전원'으로 fastboot 모드에 진입한 뒤 PC와 연결합니다.
+
+2) userdata 파티션에 iOS 16 루트 이미지를 기록합니다:
+   $ fastboot -S 512M flash userdata ios16-root.simg
+   (용량에 따라 약 5~7분 소요됩니다)
+
+3) 부트 파티션을 영구 변조하지 않고, 메모리로 직접 일시 부팅합니다:
+   $ fastboot boot shim/out/shim-boot.img
+
+4) 부팅 단계 화면 확인:
+   - 부트 심(shim)이 0x9d400000 프레임버퍼를 잡고 흰색 디버그 밴드와 콘솔 텍스트를 출력합니다.
+   - XNU 커널로 전환되면서 화면 중앙에 순정 Apple 로고가 나타납니다.
+   - 첫 부팅 시 약 3~4분간 시스템 안정화 및 파일 색인 과정을 거친 뒤 iOS 16 잠금 화면이 표시됩니다!
+
+
+--------------------------------------------------------------------------------
+7. 6단계: 트러블슈팅 및 커널 로그 덤프 (디버깅)
+--------------------------------------------------------------------------------
+
+부팅 중 화면이 멈추거나 패닉(Panic)이 발생하는 경우:
+1) 전원 + 볼륨 하(-)를 길게 눌러 다시 fastboot 모드로 복귀합니다.
+2) LG V30용 TWRP 리커버리로 일시 부팅합니다:
+   $ fastboot boot recovery/twrp-joan.img
+3) 리커버리 ADB가 연결되면 커널 로그 링(userdata 끝 4MiB 영역)을 덤프합니다:
+   $ tools/sweet-log-pull.sh logs/v30_kernel.txt
+4) 추출된 logs/v30_kernel.txt 파일을 열어 'CRASH', 'PANIC', 'GIC', 'UFS' 키워드를 확인합니다.
+
+
+--------------------------------------------------------------------------------
+[부록] 핵심 하드웨어 주소 비교표 (MSM8998 vs SM7150)
+--------------------------------------------------------------------------------
+- CPU 아키텍처:
+  * Redmi Note 10 Pro (sweet): ARMv8.2-A (Kryo 470)
+  * LG V30 (joan): ARMv8.0-A (Kryo 280)
+- MPIDR 토폴로지:
+  * sweet: 단일 클러스터 (Aff1 = core, 0x000..0x700)
+  * V30: Big.LITTLE (Silver: 0x000..0x003 / Gold: 0x100..0x103)
+- GICv3 재배포기(GICR):
+  * sweet: 0x17a60000
+  * V30: 0x17b00000
+- 프레임버퍼(cont_splash):
+  * sweet: 0x9c000000 (1080x2400)
+  * V30: 0x9d400000 (1440x2880, stride 5760)
+- UFS 2.1 컨트롤러 베이스:
+  * sweet: 0x01d84000
+  * V30: 0x01da4000
+- PSHOLD (재부팅 제어):
+  * sweet: 0x0c264000
+  * V30: 0x010ac000
+- IMEM restart_reason:
+  * sweet: 0x146aa65c
+  * V30: 0x146bf65c
+- Bootimg Ramdisk Offset:
+  * sweet: 0x01000000
+  * V30: 0x02000000
+- Bootimg Tags Offset:
+  * sweet: 0x00000100
+  * V30: 0x01e00000
+================================================================================
