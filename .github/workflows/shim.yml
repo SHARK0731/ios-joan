@@ -39,8 +39,8 @@ jobs:
       - name: Build Shim and Pack Boot Image
         run: |
           chmod +x shim/build.sh
-          # Run shim build
-          ./shim/build.sh shim/out/payload.bin
+          # Run shim build with absolute path to payload
+          ./shim/build.sh "$PWD/shim/out/payload.bin"
           ls -la shim/out/
 
       - name: Upload Shim Boot Image

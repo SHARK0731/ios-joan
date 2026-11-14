@@ -22,7 +22,8 @@ truncate -s "$size" out/Image
 # Ramdisk: an xnu payload (tools/mkpayload.py) if given as $1, else an empty
 # newc cpio (ABL dislikes a zero-size ramdisk on some builds) -> diagnostics.
 if [ -n "${1:-}" ]; then
-	cp "$1" out/ramdisk.bin
+	payload=$(realpath "$1")
+	cp "$payload" out/ramdisk.bin
 else
 	(cd out && rm -rf rd && mkdir rd && cd rd && find . | cpio -o -H newc --quiet | gzip -9 > ../ramdisk.bin)
 fi
