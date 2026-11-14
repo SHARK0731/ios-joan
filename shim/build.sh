@@ -34,7 +34,8 @@ DTB_ARG=""
 if [ -f "../dtb/boot_unpacked/dtb" ]; then
 	DTB_ARG="--dtb ../dtb/boot_unpacked/dtb --dtb_offset 0x01f00000"
 fi
-mkbootimg --kernel out/Image --ramdisk out/ramdisk.bin \
+MKBOOTIMG="python3 ../tools/mkbootimg.py"
+$MKBOOTIMG --kernel out/Image --ramdisk out/ramdisk.bin \
 	$DTB_ARG --base 0x00000000 --kernel_offset 0x8000 --ramdisk_offset 0x02000000 \
 	--tags_offset 0x01e00000 --pagesize 4096 \
 	--os_version 17.0.0 --os_patch_level 2035-06 \
