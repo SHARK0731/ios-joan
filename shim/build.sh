@@ -29,17 +29,24 @@ else
 fi
 # LG V30 (joan, MSM8998) boot image parameters:
 # base: 0x00000000, pagesize: 4096, kernel_offset: 0x8000,
-# ramdisk_offset: 0x02000000, tags_offset: 0x01e00000.
-DTB_ARG=""
+# ramdisk_offset: 0x01000000, tags_offset: 0x00000100.
+KERNEL_IMG="out/Image"
 if [ -f "../dtb/boot_unpacked/dtb" ]; then
-	DTB_ARG="--dtb ../dtb/boot_unpacked/dtb --dtb_offset 0x01f00000"
+	echo "Found joan DTB, creating Image.gz-dtb..."
+	gzip -9 -c out/Image > out/Image.gz
+	cat out/Image.gz ../dtb/boot_unpacked/dtb > out/Image.gz-dtb
+	cat out/Image ../dtb/boot_unpacked/dtb > out/Image-dtb
+	KERNEL_IMG="out/Image.gz-dtb"
 fi
 MKBOOTIMG="python3 ../tools/mkbootimg.py"
-$MKBOOTIMG --kernel out/Image --ramdisk out/ramdisk.bin \
-	$DTB_ARG --base 0x00000000 --kernel_offset 0x8000 --ramdisk_offset 0x02000000 \
-	--tags_offset 0x01e00000 --pagesize 4096 \
+$MKBOOTIMG --kernel "$KERNEL_IMG" --ramdisk out/ramdisk.bin \
+	--base 0x00000000 --kernel_offset 0x8000 --ramdisk_offset 0x01000000 \
+	--tags_offset 0x00000100 --pagesize 4096 \
 	--os_version 17.0.0 --os_patch_level 2035-06 \
-	--cmdline "console=null" -o out/shim-boot.img
+	--cmdline "androidboot.hardware=joan console=null" -o out/shim-boot.img
+if [ -f "out/Image.gz-dtb" ]; then
+	cp out/shim-boot.img out/shim-boot-gzdtb.img
+fi
 # Host render of the console layout.
 gcc -O1 -Wall -o out/host_test console.c host_test.c && ./out/host_test
 ls -l out/Image out/shim-boot.img
