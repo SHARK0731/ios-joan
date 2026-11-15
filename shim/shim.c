@@ -388,7 +388,7 @@ void shim_main(uint64_t dtb)
 
 	/* An xnu payload in the ramdisk means: boot it (MMU stays off). */
 	stage = "loader";
-	con_clear(RED);
+	con_clear(BLACK);
 	con_str("SHIM", "joan (LG V30): xnu loader");
 	con_skip();
 	const char *why = loader_boot(dtb);
@@ -415,7 +415,7 @@ void shim_main(uint64_t dtb)
 	uint64_t fill_on = rc ? 0 : ticks_fill(RED);
 	uint64_t mem_on = rc ? 0 : ticks_mem();
 	if (rc)
-		con_clear(RED);
+		con_clear(BLACK);
 
 	con_str("SHIM", "sweet milestone 3");
 	con_skip();

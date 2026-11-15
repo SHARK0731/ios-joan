@@ -117,14 +117,53 @@ diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
 index e5336e5..f8d0d2e 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -745,11 +745,30 @@ common_start:
- 	MSR_SCTLR_EL1_X0
- 	isb		sy
+@@ -740,6 +740,63 @@
+ 	PAC_INIT_KEY_STATE tmp=x0, tmp2=x1
+ #endif /* HAS_APPLE_PAC */
  
 +#if defined(SWEET)
-+	/* Stage 0.8: red 48x32 band: MMU enabled, early_fb access under MMU */
++	/* Clean and invalidate bootstrap page tables to PoC so MMU walker sees them */
++	mov		x10, x25
++	mov		x11, #(4 * PGBYTES)
++Lsweet_flush_pt:
++	dc		civac, x10
++	add		x10, x10, #64
++	subs	x11, x11, #64
++	b.gt	Lsweet_flush_pt
++	dsb		sy
++	isb
++
++	/* Stage 0.6: yellow 48x32 band: page tables flushed to PoC (pre-MMU) */
 +	MOV64	x6, (0x9d400000 + 2848 * 5760 + 96 * 4)
-+	MOV64	x7, 0xffff0000
++	MOV64	x7, 0xffffff00
++	mov		x8, #32
++	mov		x9, #5760
++Lsweet_mark_y_row:
++	mov		x10, #48
++	mov		x11, x6
++Lsweet_mark_y_pixel:
++	str		w7, [x11], #4
++	subs	x10, x10, #1
++	b.ne	Lsweet_mark_y_pixel
++	add		x6, x6, x9
++	subs	x8, x8, #1
++	b.ne	Lsweet_mark_y_row
++	dsb		sy
++
++	/*
++	 * Real ARMv8.0 hardware: preserve bootloader's valid RES1/RES0 bits,
++	 * clear alignment fault and WXN, enable MMU, D-cache, and I-cache.
++	 */
++	mrs		x0, SCTLR_EL1
++	bic		x0, x0, #(SCTLR_A_ENABLED | SCTLR_WXN_ENABLED)
++	MOV64	x1, (SCTLR_M_ENABLED | SCTLR_C_ENABLED | SCTLR_I_ENABLED | SCTLR_SA_ENABLED | SCTLR_SA0_ENABLED | SCTLR_SED_DISABLED | SCTLR_UCI_ENABLED | SCTLR_DZE_ENABLED | SCTLR_nTWE_WFE_ENABLED | SCTRL_nTWI_WFI_ENABLED | SCTLR_CP15BEN_ENABLED)
++	orr		x0, x0, x1
++	msr		SCTLR_EL1, x0
++	isb		sy
++
++	/* Stage 0.7: cyan 48x32 band: MMU enabled, early_fb access under MMU */
++	MOV64	x6, (0x9d400000 + 2848 * 5760 + 144 * 4)
++	MOV64	x7, 0xff00ffff
 +	mov		x8, #32
 +	mov		x9, #5760
 +Lsweet_mark_c_row:
@@ -138,15 +177,44 @@ index e5336e5..f8d0d2e 100644
 +	subs	x8, x8, #1
 +	b.ne	Lsweet_mark_c_row
 +	dsb		sy
-+#endif
-+
--#if !VMAPPLE
-+#if !VMAPPLE && !defined(SWEET)
- 	MOV64   x1, SCTLR_EL1_DEFAULT
++#else
+ 	// Enable caches, MMU, ROP and JOP
+ 	MOV64   x0, SCTLR_EL1_DEFAULT
+ 	MSR_SCTLR_EL1_X0
+@@ -750,6 +807,7 @@
  	cmp		x0, x1
  	bne		.
--#endif /* !VMAPPLE */
-+#endif /* !VMAPPLE && !SWEET */
+ #endif /* !VMAPPLE */
++#endif /* SWEET */
+ 
+ #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
+ 	/* Watchtower
+@@ -805,6 +863,25 @@
+ 
+ 	mov	x0, x20
+ 	mov	lr, x21
++#endif
++
++#if defined(SWEET)
++	/* Stage 0.8: magenta 48x32 band: ready to ret to arm_init */
++	MOV64	x6, (0x9d400000 + 2848 * 5760 + 192 * 4)
++	MOV64	x7, 0xffff00ff
++	mov		x8, #32
++	mov		x9, #5760
++Lsweet_mark_m_row:
++	mov		x10, #48
++	mov		x11, x6
++Lsweet_mark_m_pixel:
++	str		w7, [x11], #4
++	subs	x10, x10, #1
++	b.ne	Lsweet_mark_m_pixel
++	add		x6, x6, x9
++	subs	x8, x8, #1
++	b.ne	Lsweet_mark_m_row
++	dsb		sy
+ #endif
+ 
+ 	// Return to arm_init()
  
  #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
  	/* Watchtower

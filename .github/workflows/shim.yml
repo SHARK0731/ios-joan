@@ -25,7 +25,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p xnu/out
-          gh run download 43589408306 -R ${{ github.repository }} -n xnu-kernel -D xnu/out
+          LATEST_RUN_ID=$(gh run list --workflow=xnu.yml --status=success --limit 1 --json databaseId -q '.[0].databaseId')
+          echo "Downloading xnu-kernel from run $LATEST_RUN_ID..."
+          gh run download "$LATEST_RUN_ID" -R ${{ github.repository }} -n xnu-kernel -D xnu/out
           ls -la xnu/out/
 
       - name: Build Joan ADT and Payload
