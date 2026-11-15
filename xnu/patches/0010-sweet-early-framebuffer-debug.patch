@@ -116,7 +116,7 @@ index ccbb188..777aca4 100644
  	// Set low reset vector before attempting any loads
  	adrp	x0, EXT(LowExceptionVectorBase)@page
  	add		x0, x0, EXT(LowExceptionVectorBase)@pageoff
-@@ -609,6 +628,44 @@ Lkernelcache_base_found:
+@@ -609,6 +628,43 @@ Lkernelcache_base_found:
  	lsr		x5,  x24, #(ARM_TT_L2_SHIFT)
  	create_bootstrap_mapping x14, x15, x5, x3, x2, x9, x10, x11, x12, x13
  
@@ -141,7 +141,7 @@ index ccbb188..777aca4 100644
 +
 +	/* Stage 0.5: blue 48x32 band: V=P and KVA page tables mapped */
 +	MOV64	x0, (0x9d400000 + 2848 * 5760 + 48 * 4)
-+	MOV64	w1, 0xff0000ff
++	MOV64	x1, 0xff0000ff
 +	mov		x2, #32
 +	mov		x4, #5760
 +Lsweet_mark_b_row:

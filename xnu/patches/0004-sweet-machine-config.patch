@@ -124,7 +124,7 @@ index e5336e5..f8d0d2e 100644
 +#if defined(SWEET)
 +	/* Stage 0.8: red 48x32 band: MMU enabled, early_fb access under MMU */
 +	MOV64	x6, (0x9d400000 + 2848 * 5760 + 96 * 4)
-+	MOV64	w7, 0xffff0000
++	MOV64	x7, 0xffff0000
 +	mov		x8, #32
 +	mov		x9, #5760
 +Lsweet_mark_c_row:
