@@ -117,7 +117,7 @@ diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
 index e5336e5..f8d0d2e 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -740,6 +740,63 @@
+@@ -740,6 +740,64 @@
  	PAC_INIT_KEY_STATE tmp=x0, tmp2=x1
  #endif /* HAS_APPLE_PAC */
  
@@ -155,7 +155,8 @@ index e5336e5..f8d0d2e 100644
 +	 * clear alignment fault and WXN, enable MMU, D-cache, and I-cache.
 +	 */
 +	mrs		x0, SCTLR_EL1
-+	bic		x0, x0, #(SCTLR_A_ENABLED | SCTLR_WXN_ENABLED)
++	MOV64	x1, (SCTLR_A_ENABLED | SCTLR_WXN_ENABLED)
++	bic		x0, x0, x1
 +	MOV64	x1, (SCTLR_M_ENABLED | SCTLR_C_ENABLED | SCTLR_I_ENABLED | SCTLR_SA_ENABLED | SCTLR_SA0_ENABLED | SCTLR_SED_DISABLED | SCTLR_UCI_ENABLED | SCTLR_DZE_ENABLED | SCTLR_nTWE_WFE_ENABLED | SCTRL_nTWI_WFI_ENABLED | SCTLR_CP15BEN_ENABLED)
 +	orr		x0, x0, x1
 +	msr		SCTLR_EL1, x0
