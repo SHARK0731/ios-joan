@@ -197,7 +197,7 @@ index e5336e5..f8d0d2e 100644
  
  #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
  	/* Watchtower
-@@ -805,6 +870,54 @@
+@@ -805,6 +870,76 @@
  
  	mov	x0, x20
  	mov	lr, x21
@@ -221,22 +221,27 @@ index e5336e5..f8d0d2e 100644
 +	b.ne	Lsweet_mark_m_row
 +	dsb		sy
 +
-+	/* Flush entire kernel RAM, ADT, and boot_args to PoC */
-+	MOV64	x10, 0x100000000
-+	MOV64	x11, 0x02480000
-+Lsweet_flush_kernel:
-+	dc		civac, x10
-+	add		x10, x10, #64
-+	subs	x11, x11, #64
-+	b.gt	Lsweet_flush_kernel
-+	dsb		sy
-+	ic		iallu
-+	dsb		sy
-+	isb		sy
-+
++	/* Invalidate TLBs */
 +	tlbi	vmalle1
 +	dsb		ish
 +	isb		sy
++
++	/* Sub-marker Orange (x=240..264): TLB flushed, ready for SCTLR write */
++	MOV64	x6, (0x9d400000 + 2848 * 5760 + 240 * 4)
++	MOV64	x7, 0xffffa500
++	mov		x8, #32
++	mov		x9, #5760
++Lsweet_mark_o_row:
++	mov		x10, #24
++	mov		x11, x6
++Lsweet_mark_o_pixel:
++	str		w7, [x11], #4
++	subs	x10, x10, #1
++	b.ne	Lsweet_mark_o_pixel
++	add		x6, x6, x9
++	subs	x8, x8, #1
++	b.ne	Lsweet_mark_o_row
++	dsb		sy
 +
 +	/* Enable MMU (M=1, C=1, I=1): preserve firmware RES1 bits, clear A and WXN */
 +	mrs		x1, SCTLR_EL1
@@ -246,6 +251,23 @@ index e5336e5..f8d0d2e 100644
 +	orr		x1, x1, x2
 +	msr		SCTLR_EL1, x1
 +	isb		sy
++
++	/* Sub-marker Green (x=264..288): MMU enabled (running under TTBR0)! */
++	MOV64	x6, (0x9d400000 + 2848 * 5760 + 264 * 4)
++	MOV64	x7, 0xff00ff00
++	mov		x8, #32
++	mov		x9, #5760
++Lsweet_mark_gn_row:
++	mov		x10, #24
++	mov		x11, x6
++Lsweet_mark_gn_pixel:
++	str		w7, [x11], #4
++	subs	x10, x10, #1
++	b.ne	Lsweet_mark_gn_pixel
++	add		x6, x6, x9
++	subs	x8, x8, #1
++	b.ne	Lsweet_mark_gn_row
++	dsb		sy
 +
 +	/* Direct jump to arm_init in KVA */
 +	br		lr
