@@ -117,7 +117,7 @@ diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
 index e5336e5..f8d0d2e 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -740,6 +740,74 @@
+@@ -740,6 +740,71 @@
  	PAC_INIT_KEY_STATE tmp=x0, tmp2=x1
  #endif /* HAS_APPLE_PAC */
  
@@ -167,10 +167,7 @@ index e5336e5..f8d0d2e 100644
 +	b.ne	Lsweet_mark_g_row
 +	dsb		sy
 +
-+	/* Use SCTLR_EL1_DEFAULT directly: safe known value, no tlbi, no RMW */
-+	MOV64	x0, SCTLR_EL1_DEFAULT
-+	msr		SCTLR_EL1, x0
-+	isb		sy
++	/* Shim already configured SCTLR_EL1 (M=1, C=1, I=1); keep existing hardware bits */
 +
 +	/* Stage 0.7: cyan 48x32 band: MMU enabled, early_fb access under MMU */
 +	MOV64	x6, (0x9d400000 + 2848 * 5760 + 144 * 4)
@@ -192,7 +189,7 @@ index e5336e5..f8d0d2e 100644
  	// Enable caches, MMU, ROP and JOP
  	MOV64   x0, SCTLR_EL1_DEFAULT
  	MSR_SCTLR_EL1_X0
-@@ -750,6 +817,7 @@
+@@ -750,6 +814,7 @@
  	cmp		x0, x1
  	bne		.
  #endif /* !VMAPPLE */
@@ -200,7 +197,7 @@ index e5336e5..f8d0d2e 100644
  
  #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
  	/* Watchtower
-@@ -805,6 +873,25 @@
+@@ -805,6 +870,25 @@
  
  	mov	x0, x20
  	mov	lr, x21
