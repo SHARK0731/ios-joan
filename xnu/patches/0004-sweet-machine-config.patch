@@ -150,7 +150,7 @@ index e5336e5..f8d0d2e 100644
 +	b.ne	Lsweet_mark_y_row
 +	dsb		sy
 +
-+	/* Stage 0.65: lime sub-marker: page-table flush done, before SCTLR */
++	/* Stage 0.65: lime sub-marker: page tables flushed, before SCTLR write */
 +	MOV64	x6, (0x9d400000 + 2848 * 5760 + 120 * 4)
 +	MOV64	x7, 0xFF00FF00
 +	mov		x8, #32
@@ -167,7 +167,7 @@ index e5336e5..f8d0d2e 100644
 +	b.ne	Lsweet_mark_g_row
 +	dsb		sy
 +
-+	/* Use SCTLR_EL1_DEFAULT directly: no tlbi, no RMW */
++	/* Use SCTLR_EL1_DEFAULT directly: safe known value, no tlbi, no RMW */
 +	MOV64	x0, SCTLR_EL1_DEFAULT
 +	msr		SCTLR_EL1, x0
 +	isb		sy
@@ -192,7 +192,7 @@ index e5336e5..f8d0d2e 100644
  	// Enable caches, MMU, ROP and JOP
  	MOV64   x0, SCTLR_EL1_DEFAULT
  	MSR_SCTLR_EL1_X0
-@@ -750,6 +810,7 @@
+@@ -750,6 +817,7 @@
  	cmp		x0, x1
  	bne		.
  #endif /* !VMAPPLE */
@@ -200,7 +200,7 @@ index e5336e5..f8d0d2e 100644
  
  #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
  	/* Watchtower
-@@ -805,9 +866,28 @@
+@@ -805,6 +873,25 @@
  
  	mov	x0, x20
  	mov	lr, x21
