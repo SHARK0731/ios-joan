@@ -2,7 +2,8 @@ diff --git a/makedefs/MakeInc.def b/makedefs/MakeInc.def
 index 8460893..9a748ea 100644
 --- a/makedefs/MakeInc.def
 +++ b/makedefs/MakeInc.def
-@@ -29,7 +29,7 @@ SUPPORTED_ARM64_MACHINE_CONFIGS = NONE else ifneq ($(findstring _host,$(RC_ProjectName)),)
+@@ -29,7 +29,7 @@ SUPPORTED_ARM64_MACHINE_CONFIGS = NONE
+ else ifneq ($(findstring _host,$(RC_ProjectName)),)
  SUPPORTED_ARM64_MACHINE_CONFIGS = NONE
  else
 -SUPPORTED_ARM64_MACHINE_CONFIGS = BCM2837 T6000 T8101 T8103 VMAPPLE
@@ -10,14 +11,16 @@ index 8460893..9a748ea 100644
  
  endif
  
-@@ -61,6 +61,7 @@ MACHINE_FLAGS_ARM64_T8103 = -DARM64_BOARD_CONFIG_T8103                  -mcpu=ap MACHINE_FLAGS_ARM64_T6000 = -DARM64_BOARD_CONFIG_T6000 		-mcpu=apple-a14
+@@ -61,6 +61,7 @@ MACHINE_FLAGS_ARM64_T8103 = -DARM64_BOARD_CONFIG_T8103                  -mcpu=ap
+ MACHINE_FLAGS_ARM64_T6000 = -DARM64_BOARD_CONFIG_T6000 		-mcpu=apple-a14
  MACHINE_FLAGS_ARM64_VMAPPLE = -DARM64_BOARD_CONFIG_VMAPPLE              -march=armv8.5a
  MACHINE_FLAGS_ARM64_BCM2837 = -DARM64_BOARD_CONFIG_BCM2837
 +MACHINE_FLAGS_ARM64_SWEET = -DARM64_BOARD_CONFIG_SWEET                -march=armv8-a+crypto
  
  
  #
-@@ -259,8 +260,11 @@ ifeq ($(ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG),) # Without embdedded device map, use a default arch string
+@@ -259,8 +260,11 @@ ifeq ($(ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG),)
+ # Without embdedded device map, use a default arch string
  export ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := $(shell echo $(CURRENT_ARCH_CONFIG) | tr A-Z a-z)
  ifneq ($(filter arm64,$(ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG)),)
 +# sweet's Cortex-A76/A55 have no pointer authentication: stay plain arm64
@@ -32,7 +35,8 @@ diff --git a/osfmk/arm64/proc_reg.h b/osfmk/arm64/proc_reg.h
 index 133b07f..e01c124 100644
 --- a/osfmk/arm64/proc_reg.h
 +++ b/osfmk/arm64/proc_reg.h
-@@ -213,6 +213,14 @@ /* D-Cache. */
+@@ -213,6 +213,14 @@
+ /* D-Cache. */
  #define MMU_CLINE   6
  
 +#elif defined (SWEET) /* Qualcomm Kryo 470: Cortex-A76 + Cortex-A55 */
@@ -50,14 +54,16 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 index c40c6ea..9888608 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -32,6 +32,7 @@ #include <arm/misc_protos.h>
+@@ -32,6 +32,7 @@
+ #include <arm/misc_protos.h>
  #include <arm/thread.h>
  #include <arm/rtclock.h>
 +#include <arm/machine_cpu.h>
  #include <arm/trap.h> /* for IS_ARM_GDB_TRAP() et al */
  #include <arm64/proc_reg.h>
  #include <arm64/machine_machdep.h>
-@@ -1855,6 +1856,42 @@ sleh_irq(arm_saved_state_t *state) #endif
+@@ -1855,6 +1856,42 @@ sleh_irq(arm_saved_state_t *state)
+ #endif
  
  
 +#if defined(SWEET)
@@ -99,7 +105,8 @@ index c40c6ea..9888608 100644
  	sleh_interrupt_handler_prologue(state, DBG_INTR_TYPE_OTHER);
  
  #if USE_APPLEARMSMP
-@@ -1866,6 +1903,7 @@ sleh_irq(arm_saved_state_t *state) 	    cdp->interrupt_nub,
+@@ -1866,6 +1903,7 @@ sleh_irq(arm_saved_state_t *state)
+ 	    cdp->interrupt_nub,
  	    cdp->interrupt_source);
  #endif
 +#endif /* SWEET */
@@ -110,7 +117,8 @@ diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
 index e5336e5..f8d0d2e 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -740,6 +740,74 @@ 	PAC_INIT_KEY_STATE tmp=x0, tmp2=x1
+@@ -740,6 +740,74 @@
+ 	PAC_INIT_KEY_STATE tmp=x0, tmp2=x1
  #endif /* HAS_APPLE_PAC */
  
 +#if defined(SWEET)
@@ -142,7 +150,7 @@ index e5336e5..f8d0d2e 100644
 +	b.ne	Lsweet_mark_y_row
 +	dsb		sy
 +
-+	/* Stage 0.65: lime sub-marker: page tables flushed, before SCTLR write */
++	/* Stage 0.65: lime sub-marker: page-table flush done, before SCTLR */
 +	MOV64	x6, (0x9d400000 + 2848 * 5760 + 120 * 4)
 +	MOV64	x7, 0xFF00FF00
 +	mov		x8, #32
@@ -159,7 +167,7 @@ index e5336e5..f8d0d2e 100644
 +	b.ne	Lsweet_mark_g_row
 +	dsb		sy
 +
-+	/* Use SCTLR_EL1_DEFAULT directly: safe known value, no tlbi, no RMW */
++	/* Use SCTLR_EL1_DEFAULT directly: no tlbi, no RMW */
 +	MOV64	x0, SCTLR_EL1_DEFAULT
 +	msr		SCTLR_EL1, x0
 +	isb		sy
@@ -184,14 +192,16 @@ index e5336e5..f8d0d2e 100644
  	// Enable caches, MMU, ROP and JOP
  	MOV64   x0, SCTLR_EL1_DEFAULT
  	MSR_SCTLR_EL1_X0
-@@ -750,6 +810,7 @@ 	cmp		x0, x1
+@@ -750,6 +810,7 @@
+ 	cmp		x0, x1
  	bne		.
  #endif /* !VMAPPLE */
 +#endif /* SWEET */
  
  #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
  	/* Watchtower
-@@ -805,9 +866,28 @@ 
+@@ -805,9 +866,28 @@
+ 
  	mov	x0, x20
  	mov	lr, x21
 +#endif
@@ -223,7 +233,8 @@ diff --git a/pexpert/arm/pe_fiq.c b/pexpert/arm/pe_fiq.c
 index 3ad743f..4ec6989 100644
 --- a/pexpert/arm/pe_fiq.c
 +++ b/pexpert/arm/pe_fiq.c
-@@ -141,11 +141,25 @@ pe_init_fiq() 		}
+@@ -141,11 +141,25 @@ pe_init_fiq()
+ 		}
  	}
  
 +#if defined(SWEET)
@@ -248,7 +259,8 @@ index 3ad743f..4ec6989 100644
  
  	// Enable system register access
  	uint64_t icc_sre = __builtin_arm_rsr64("ICC_SRE_EL1");
-@@ -153,8 +167,12 @@ pe_init_fiq() 	__builtin_arm_wsr64("ICC_SRE_EL1", icc_sre);
+@@ -153,8 +167,12 @@ pe_init_fiq()
+ 	__builtin_arm_wsr64("ICC_SRE_EL1", icc_sre);
  	__builtin_arm_isb(ISB_SY);
  
 +#if defined(SWEET)
@@ -260,7 +272,8 @@ index 3ad743f..4ec6989 100644
  	__builtin_arm_wsr64("ICC_PMR_EL1", 0xFF);
  
  	// Set EOI mode of this processor
-@@ -162,12 +180,24 @@ pe_init_fiq() 	icc_ctlr &= ~ICC_CTLR_EOIMODE;
+@@ -162,12 +180,24 @@ pe_init_fiq()
+ 	icc_ctlr &= ~ICC_CTLR_EOIMODE;
  	__builtin_arm_wsr64("ICC_CTLR_EL1", icc_ctlr);
  
 +#if defined(SWEET)
@@ -288,7 +301,8 @@ diff --git a/pexpert/pexpert/arm64/Makefile b/pexpert/pexpert/arm64/Makefile
 index 8226b8c..c7d274f 100644
 --- a/pexpert/pexpert/arm64/Makefile
 +++ b/pexpert/pexpert/arm64/Makefile
-@@ -17,7 +17,8 @@ PRIVATE_KERNELFILES = \ 	boot.h \
+@@ -17,7 +17,8 @@ PRIVATE_KERNELFILES = \
+ 	boot.h \
  	H13.h \
  	VMAPPLE.h \
 -	BCM2837.h
@@ -302,7 +316,8 @@ new file mode 100644
 index 0000000..a044ad0
 --- /dev/null
 +++ b/pexpert/pexpert/arm64/SWEET.h
-@@ -0,0 +1,75 @@+/*
+@@ -0,0 +1,75 @@
++/*
 + * Board config for the Redmi Note 10 Pro ("sweet", Qualcomm SM7150 /
 + * Snapdragon 732G): Kryo 470 = Cortex-A76 + Cortex-A55, ARMv8.2, no PAC.
 + *
@@ -381,7 +396,8 @@ diff --git a/pexpert/pexpert/arm64/board_config.h b/pexpert/pexpert/arm64/board_
 index 9454534..88e524a 100644
 --- a/pexpert/pexpert/arm64/board_config.h
 +++ b/pexpert/pexpert/arm64/board_config.h
-@@ -97,6 +97,17 @@ #define CORE_NCTRS                     8 /* Placeholder; KPC is not enabled for this target */
+@@ -97,6 +97,17 @@
+ #define CORE_NCTRS                     8 /* Placeholder; KPC is not enabled for this target */
  #endif  /* ARM64_BOARD_CONFIG_BCM2837 */
  
 +#ifdef ARM64_BOARD_CONFIG_SWEET
