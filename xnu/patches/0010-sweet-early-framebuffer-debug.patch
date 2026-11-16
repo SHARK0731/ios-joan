@@ -2,16 +2,14 @@ diff --git a/osfmk/arm/arm_init.c b/osfmk/arm/arm_init.c
 index e26a1d7..e3579f1 100644
 --- a/osfmk/arm/arm_init.c
 +++ b/osfmk/arm/arm_init.c
-@@ -56,6 +56,7 @@
- #include <pexpert/arm/consistent_debug.h>
+@@ -56,6 +56,7 @@ #include <pexpert/arm/consistent_debug.h>
  #include <pexpert/device_tree.h>
  #include <arm64/proc_reg.h>
 +#include <arm64/sweet_early.h>
  #include <arm/pmap.h>
  #include <arm/caches_internal.h>
  #include <arm/cpu_internal.h>
-@@ -346,6 +347,8 @@ arm_init(
- 	DTEntry chosen = NULL;
+@@ -346,6 +347,8 @@ arm_init( 	DTEntry chosen = NULL;
  	unsigned int dt_entry_size = 0;
  
 +	sweet_early_mark(1, "arm_init entered (MMU on)");
@@ -19,24 +17,21 @@ index e26a1d7..e3579f1 100644
  	arm_setup_pre_sign();
  
  	arm_slide_rebase_and_sign_image();
-@@ -362,6 +365,7 @@ arm_init(
- #endif /* defined(HAS_APPLE_PAC) */
+@@ -362,6 +365,7 @@ arm_init( #endif /* defined(HAS_APPLE_PAC) */
  
  	PE_init_platform(FALSE, args); /* Get platform expert set up */
 +	sweet_early_mark(2, "PE_init_platform done");
  
  #if __arm64__
  	configure_timer_apple_regs();
-@@ -423,6 +427,7 @@ arm_init(
- #endif
+@@ -423,6 +427,7 @@ arm_init( #endif
  
  	ml_parse_cpu_topology();
 +	sweet_early_mark(3, "ml_parse_cpu_topology done");
  
  
  	master_cpu = ml_get_boot_cpu_number();
-@@ -453,11 +458,13 @@ arm_init(
- 	 */
+@@ -453,11 +458,13 @@ arm_init( 	 */
  	thread->machine.preemption_count = 0;
  	cpu_bootstrap();
 +	sweet_early_mark(4, "cpu_bootstrap done");
@@ -49,16 +44,14 @@ index e26a1d7..e3579f1 100644
  
  	/*
  	 * Initialize the timer callout world
-@@ -466,6 +473,7 @@ arm_init(
- 
+@@ -466,6 +473,7 @@ arm_init( 
  	cpu_init();
  
 +	sweet_early_mark(6, "cpu_init done");
  	processor_bootstrap();
  
  	if (PE_parse_boot_argn("maxmem", &maxmem, sizeof(maxmem))) {
-@@ -513,6 +521,7 @@ arm_init(
- 	__builtin_arm_wsr("pan", 1);
+@@ -513,6 +521,7 @@ arm_init( 	__builtin_arm_wsr("pan", 1);
  #endif  /* __ARM_PAN_AVAILABLE__ */
  
 +	sweet_early_mark(7, "entering arm_vm_init");
@@ -69,16 +62,14 @@ diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
 index d89b0f1..d0c710d 100644
 --- a/osfmk/arm64/arm_vm_init.c
 +++ b/osfmk/arm64/arm_vm_init.c
-@@ -41,6 +41,7 @@
- #include <machine/atomic.h>
+@@ -41,6 +41,7 @@ #include <machine/atomic.h>
  #include <arm64/proc_reg.h>
  #include <arm64/lowglobals.h>
 +#include <arm64/sweet_early.h>
  #include <arm/cpu_data_internal.h>
  #include <arm/misc_protos.h>
  #include <pexpert/arm64/boot.h>
-@@ -2145,6 +2146,8 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
- 
+@@ -2145,6 +2146,8 @@ arm_vm_init(uint64_t memory_size, boot_args * args) 
  	ml_enable_monitor();
  
 +	/* The framebuffer VA=PA mapping belongs to the outgoing TTBR0. */
@@ -90,8 +81,7 @@ diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
 index ccbb188..777aca4 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -463,6 +463,25 @@ LEXT(start_first_cpu)
- 	mov		x20, x0
+@@ -463,6 +463,25 @@ LEXT(start_first_cpu) 	mov		x20, x0
  	mov		x21, #0
  
 +#if defined(SWEET)
@@ -116,8 +106,7 @@ index ccbb188..777aca4 100644
  	// Set low reset vector before attempting any loads
  	adrp	x0, EXT(LowExceptionVectorBase)@page
  	add		x0, x0, EXT(LowExceptionVectorBase)@pageoff
-@@ -609,6 +628,47 @@ Lkernelcache_base_found:
- 	lsr		x5,  x24, #(ARM_TT_L2_SHIFT)
+@@ -609,6 +628,47 @@ Lkernelcache_base_found: 	lsr		x5,  x24, #(ARM_TT_L2_SHIFT)
  	create_bootstrap_mapping x14, x15, x5, x3, x2, x9, x10, x11, x12, x13
  
 +#if defined(SWEET)
@@ -169,8 +158,7 @@ new file mode 100644
 index 0000000..8f4c808
 --- /dev/null
 +++ b/osfmk/arm64/sweet_early.c
-@@ -0,0 +1,130 @@
-+/*
+@@ -0,0 +1,130 @@+/*
 + * Redmi Note 10 Pro bootstrap console. No allocation, locks, ADT parsing or
 + * per-CPU state: panic() can reach this before a current thread exists.
 + * start.s maps the splash framebuffer VA=PA as Normal Non-Cacheable memory.
@@ -305,8 +293,7 @@ new file mode 100644
 index 0000000..fbbc827
 --- /dev/null
 +++ b/osfmk/arm64/sweet_early.h
-@@ -0,0 +1,22 @@
-+/* Early screen diagnostics, valid only while the bootstrap TTBR0 is live. */
+@@ -0,0 +1,22 @@+/* Early screen diagnostics, valid only while the bootstrap TTBR0 is live. */
 +#ifndef _ARM64_SWEET_EARLY_H_
 +#define _ARM64_SWEET_EARLY_H_
 +
@@ -332,8 +319,7 @@ diff --git a/osfmk/conf/files.arm64 b/osfmk/conf/files.arm64
 index c40d57b..b0dad49 100644
 --- a/osfmk/conf/files.arm64
 +++ b/osfmk/conf/files.arm64
-@@ -40,6 +40,7 @@ osfmk/arm64/dbgwrap.c		standard
- osfmk/arm/arm_timer.c		standard
+@@ -40,6 +40,7 @@ osfmk/arm64/dbgwrap.c		standard osfmk/arm/arm_timer.c		standard
  osfmk/arm/arm_init.c	optional config_pmap_ppl
  osfmk/arm64/arm_vm_init.c	optional config_pmap_ppl
 +osfmk/arm64/sweet_early.c	standard
@@ -344,8 +330,7 @@ diff --git a/osfmk/kern/debug.c b/osfmk/kern/debug.c
 index 0a00656..437adb1 100644
 --- a/osfmk/kern/debug.c
 +++ b/osfmk/kern/debug.c
-@@ -84,6 +84,9 @@
- #include <stdatomic.h>
+@@ -84,6 +84,9 @@ #include <stdatomic.h>
  #include <sys/pgo.h>
  #include <console/serial_protos.h>
 +#if defined(__arm64__)
@@ -354,8 +339,7 @@ index 0a00656..437adb1 100644
  #include <IOKit/IOBSD.h>
  
  #if !(MACH_KDP && CONFIG_KDP_INTERACTIVE_DEBUGGING)
-@@ -1069,6 +1072,11 @@ panic_trap_to_debugger(const char *panic_format_str, va_list *panic_args, unsign
- {
+@@ -1069,6 +1072,11 @@ panic_trap_to_debugger(const char *panic_format_str, va_list *panic_args, unsign {
  #pragma clang diagnostic pop
  
 +#if defined(SWEET)
