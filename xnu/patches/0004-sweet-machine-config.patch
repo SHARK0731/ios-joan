@@ -197,14 +197,14 @@ index e5336e5..f8d0d2e 100644
  
  #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
  	/* Watchtower
-@@ -805,6 +870,25 @@
+@@ -805,6 +870,54 @@
  
  	mov	x0, x20
  	mov	lr, x21
 +#endif
 +
 +#if defined(SWEET)
-+	/* Stage 0.8: magenta 48x32 band: ready to ret to arm_init */
++	/* Stage 0.8: magenta 48x32 band: ready to enter arm_init */
 +	MOV64	x6, (0x9d400000 + 2848 * 5760 + 192 * 4)
 +	MOV64	x7, 0xffff00ff
 +	mov		x8, #32
@@ -220,6 +220,35 @@ index e5336e5..f8d0d2e 100644
 +	subs	x8, x8, #1
 +	b.ne	Lsweet_mark_m_row
 +	dsb		sy
++
++	/* Flush entire kernel RAM, ADT, and boot_args to PoC */
++	MOV64	x10, 0x100000000
++	MOV64	x11, 0x02480000
++Lsweet_flush_kernel:
++	dc		civac, x10
++	add		x10, x10, #64
++	subs	x11, x11, #64
++	b.gt	Lsweet_flush_kernel
++	dsb		sy
++	ic		iallu
++	dsb		sy
++	isb		sy
++
++	tlbi	vmalle1
++	dsb		ish
++	isb		sy
++
++	/* Enable MMU (M=1, C=1, I=1): preserve firmware RES1 bits, clear A and WXN */
++	mrs		x1, SCTLR_EL1
++	MOV64	x2, (SCTLR_A_ENABLED | SCTLR_WXN_ENABLED)
++	bic		x1, x1, x2
++	MOV64	x2, (SCTLR_M_ENABLED | SCTLR_C_ENABLED | SCTLR_I_ENABLED)
++	orr		x1, x1, x2
++	msr		SCTLR_EL1, x1
++	isb		sy
++
++	/* Direct jump to arm_init in KVA */
++	br		lr
  #endif
  
  	// Return to arm_init()
