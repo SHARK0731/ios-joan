@@ -124,7 +124,7 @@ index e5336e5..f8d0d2e 100644
 +#if defined(SWEET)
 +	/* Clean and invalidate bootstrap page tables to PoC so MMU walker sees them */
 +	mov		x10, x25
-+	mov		x11, #(4 * PGBYTES)
++	mov		x11, #(8 * PGBYTES)
 +Lsweet_flush_pt:
 +	dc		civac, x10
 +	add		x10, x10, #64
@@ -197,7 +197,7 @@ index e5336e5..f8d0d2e 100644
  
  #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
  	/* Watchtower
-@@ -805,6 +870,76 @@
+@@ -805,6 +870,71 @@
  
  	mov	x0, x20
  	mov	lr, x21
@@ -221,12 +221,7 @@ index e5336e5..f8d0d2e 100644
 +	b.ne	Lsweet_mark_m_row
 +	dsb		sy
 +
-+	/* Invalidate TLBs */
-+	tlbi	vmalle1
-+	dsb		ish
-+	isb		sy
-+
-+	/* Sub-marker Orange (x=240..264): TLB flushed, ready for SCTLR write */
++	/* Sub-marker Orange (x=240..264): ready for SCTLR write (4KB granule on MSM8998) */
 +	MOV64	x6, (0x9d400000 + 2848 * 5760 + 240 * 4)
 +	MOV64	x7, 0xffffa500
 +	mov		x8, #32
@@ -274,9 +269,6 @@ index e5336e5..f8d0d2e 100644
  #endif
  
  	// Return to arm_init()
- 
- #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
- 	/* Watchtower
 diff --git a/pexpert/arm/pe_fiq.c b/pexpert/arm/pe_fiq.c
 index 3ad743f..4ec6989 100644
 --- a/pexpert/arm/pe_fiq.c
@@ -364,16 +356,16 @@ new file mode 100644
 index 0000000..a044ad0
 --- /dev/null
 +++ b/pexpert/pexpert/arm64/SWEET.h
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,73 @@
 +/*
-+ * Board config for the Redmi Note 10 Pro ("sweet", Qualcomm SM7150 /
-+ * Snapdragon 732G): Kryo 470 = Cortex-A76 + Cortex-A55, ARMv8.2, no PAC.
++ * Board config for LG V30 ("joan", Qualcomm MSM8998 / Snapdragon 835):
++ * Kryo 280 = Cortex-A73 + Cortex-A53, ARMv8.0-A (no PAN, no 16K granule, no PAC).
 + *
 + * Generic ARM like BCM2837 (no APPLE_ARM64_ARCH_FAMILY: none of Apple's
-+ * implementation-defined system registers exist), 16K pages and GICv3 like
-+ * VMAPPLE. Unlike VMAPPLE the GIC has two security states (GICD_TYPER
-+ * SecurityExtn=1): Group 0 belongs to TrustZone, so every interrupt,
-+ * including the timer, is a Group 1 IRQ taken through sleh_irq().
++ * implementation-defined system registers exist), 4K pages (Cortex-A73/A53
++ * TGran16=0) and GICv3 with two security states (GICD_TYPER SecurityExtn=1):
++ * Group 0 belongs to TrustZone, so every interrupt, including the timer,
++ * is a Group 1 IRQ taken through sleh_irq().
 + */
 +
 +#ifndef _PEXPERT_ARM64_SWEET_H
@@ -392,8 +384,6 @@ index 0000000..a044ad0
 +#define __ARM_DEBUG__             7
 +#define __ARM_ENABLE_SWAP__       1
 +#define __ARM_V8_CRYPTO_EXTENSIONS__ 1
-+#define __ARM_PAN_AVAILABLE__     1
-+#define __ARM_16K_PG__            1
 +
 +#define HAS_GIC_V3                1
 +
