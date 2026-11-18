@@ -1,18 +1,22 @@
 diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
 --- a/osfmk/arm64/arm_vm_init.c
 +++ b/osfmk/arm64/arm_vm_init.c
-@@ -1825,6 +1825,44 @@
+@@ -1825,6 +1825,48 @@
  #define ARM64_PHYSMAP_ALIGNMENT_PADDING (PTOV_TABLE_SIZE * ARM_TT_TWIG_SIZE)
  #endif
  
 +#if defined(SWEET)
 +/*
 + * The reserved low-globals/kernel region is excluded from VM allocation.
-+ * Use the two otherwise empty 32MB blocks above low globals and below gVirtBase
++ * Use the otherwise empty L2 blocks above low globals and below gVirtBase
 + * for a Normal-NC framebuffer alias that survives bootstrap TTBR0 teardown.
-+ * LG V30 FB (15.82MB at 0x9d400000) spans 0x9c000000 and 0x9e000000.
++ * LG V30 FB (15.82MB at 0x9d400000) spans 0x9c000000/0x9e000000 (16K) or 8x2MB (4K).
 + */
++#if defined(ARM_LARGE_MEMORY)
 +#define SWEET_EARLY_FB_VA (VM_MIN_KERNEL_ADDRESS + ARM_TT_L2_SIZE)
++#else
++#define SWEET_EARLY_FB_VA (0xfffffff000000000ULL + ARM_TT_L2_SIZE)
++#endif
 +
 +static void
 +sweet_early_map_final(void)
