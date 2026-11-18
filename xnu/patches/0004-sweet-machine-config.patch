@@ -15,7 +15,7 @@ index 8460893..9a748ea 100644
  MACHINE_FLAGS_ARM64_T6000 = -DARM64_BOARD_CONFIG_T6000 		-mcpu=apple-a14
  MACHINE_FLAGS_ARM64_VMAPPLE = -DARM64_BOARD_CONFIG_VMAPPLE              -march=armv8.5a
  MACHINE_FLAGS_ARM64_BCM2837 = -DARM64_BOARD_CONFIG_BCM2837
-+MACHINE_FLAGS_ARM64_SWEET = -DARM64_BOARD_CONFIG_SWEET                -march=armv8-a+crypto
++MACHINE_FLAGS_ARM64_SWEET = -DARM64_BOARD_CONFIG_SWEET                -mcpu=cortex-a73 -mno-outline-atomics
  
  
  #
@@ -122,11 +122,11 @@ index e5336e5..f8d0d2e 100644
  #endif /* HAS_APPLE_PAC */
  
 +#if defined(SWEET)
-+	/* Clean and invalidate bootstrap page tables to PoC so MMU walker sees them */
-+	mov		x10, x25
-+	mov		x11, #(8 * PGBYTES)
++	/* Invalidate stale ABL D-cache lines over 24MB kernel + PT + ADT + boot_args */
++	and		x10, x23, #~0xffff
++	MOV64	x11, 0x1800000
 +Lsweet_flush_pt:
-+	dc		civac, x10
++	dc		ivac, x10
 +	add		x10, x10, #64
 +	subs	x11, x11, #64
 +	b.gt	Lsweet_flush_pt
@@ -356,7 +356,7 @@ new file mode 100644
 index 0000000..a044ad0
 --- /dev/null
 +++ b/pexpert/pexpert/arm64/SWEET.h
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,72 @@
 +/*
 + * Board config for LG V30 ("joan", Qualcomm MSM8998 / Snapdragon 835):
 + * Kryo 280 = Cortex-A73 + Cortex-A53, ARMv8.0-A (no PAN, no 16K granule, no PAC).
@@ -382,7 +382,6 @@ index 0000000..a044ad0
 +#define __ARM_VFP__               4
 +#define __ARM_COHERENT_CACHE__    1
 +#define __ARM_DEBUG__             7
-+#define __ARM_ENABLE_SWAP__       1
 +#define __ARM_V8_CRYPTO_EXTENSIONS__ 1
 +
 +#define HAS_GIC_V3                1
